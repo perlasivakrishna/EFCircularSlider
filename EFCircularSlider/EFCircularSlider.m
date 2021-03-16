@@ -15,6 +15,8 @@
 #define ToDeg(rad)		( (180.0 * (rad)) / M_PI )
 #define SQR(x)			( (x) * (x) )
 
+const CGFloat AnimationChangeTimeStep = 0.01f;
+
 @interface EFCircularSlider (private)
 
 @property (readonly, nonatomic) CGFloat radius;
@@ -38,10 +40,10 @@
     _unfilledColor = [UIColor blackColor];
     _filledColor = [UIColor redColor];
     _handleColor = _filledColor;
-    _labelFont = [UIFont systemFontOfSize:10.0f];
+    _handleCenterColor = _handleColor;
     _snapToLabels = NO;
     _handleType = EFSemiTransparentWhiteCircle;
-    _labelColor = [UIColor redColor];
+    _labelColor = [UIColor whiteColor];
     _labelDisplacement = 2;
     
     self.backgroundColor = [UIColor clearColor];
@@ -68,7 +70,6 @@
 
 
 #pragma mark - Setter/Getter
-
 - (void)setFrame:(CGRect)frame {
     [super setFrame:frame];
     
@@ -81,11 +82,40 @@
 }
 
 - (void)setCurrentValue:(float)currentValue {
+    _valueSetManually = true;
     _currentValue=currentValue;
     
     if(_currentValue>_maximumValue) _currentValue=_maximumValue;
     else if(_currentValue<_minimumValue) _currentValue=_minimumValue;
     
+    angle = [self angleFromValue];
+    [self setNeedsLayout];
+    [self setNeedsDisplay];
+    [self sendActionsForControlEvents:UIControlEventValueChanged];
+}
+
+- (void)setCurrentValue:(float )currentValue animated:(BOOL)animated duration:(CGFloat)duration {
+    _valueSetManually = true;
+    [self animateProgressBarChangeFrom:_currentValue to:currentValue duration:duration];
+}
+
+- (void)animateProgressBarChangeFrom:(CGFloat)startProgress to:(CGFloat)endProgress duration:(CGFloat)duration {
+    _currentValue = startProgress;
+    self.endValue = endProgress;
+    
+    self._animationProgressStep = (self.endValue - _currentValue) * AnimationChangeTimeStep / duration;
+    
+    self._animationTimer = [NSTimer scheduledTimerWithTimeInterval:AnimationChangeTimeStep target:self selector:@selector(updateProgressBarForAnimation) userInfo:nil repeats:YES];
+    [[NSRunLoop currentRunLoop] addTimer:self._animationTimer forMode:NSRunLoopCommonModes];
+}
+
+- (void)updateProgressBarForAnimation {
+    _currentValue += self._animationProgressStep;
+    if ((self._animationProgressStep > 0 && _currentValue >= self.endValue) || (self._animationProgressStep < 0 && _currentValue <= self.endValue)) {
+        [self._animationTimer invalidate];
+        self._animationTimer = nil;
+        _currentValue = self.endValue;
+    }
     angle = [self angleFromValue];
     [self setNeedsLayout];
     [self setNeedsDisplay];
@@ -128,40 +158,61 @@
     [self drawHandle:ctx];
 }
 
--(void) drawHandle:(CGContextRef)ctx{
-    CGContextSaveGState(ctx);
-    CGPoint handleCenter =  [self pointFromAngle: angle];
-    if(_handleType == EFSemiTransparentWhiteCircle) {
-        [[UIColor colorWithWhite:1.0 alpha:0.7] set];
-        CGContextFillEllipseInRect(ctx, CGRectMake(handleCenter.x, handleCenter.y, _lineWidth, _lineWidth));
-    } else if(_handleType == EFSemiTransparentBlackCircle) {
-        [[UIColor colorWithWhite:0.0 alpha:0.7] set];
-        CGContextFillEllipseInRect(ctx, CGRectMake(handleCenter.x, handleCenter.y, _lineWidth, _lineWidth));
-    } else if(_handleType == EFDoubleCircleWithClosedCenter) {
-        [_handleColor set];
-        CGContextAddArc(ctx, handleCenter.x + (_lineWidth)/2, handleCenter.y + (_lineWidth)/2, _lineWidth, 0, M_PI *2, 0);
-        CGContextSetLineWidth(ctx, 7);
-        CGContextSetLineCap(ctx, kCGLineCapButt);
-        CGContextDrawPath(ctx, kCGPathStroke);
-        
-        CGContextFillEllipseInRect(ctx, CGRectMake(handleCenter.x, handleCenter.y, _lineWidth-1, _lineWidth-1));
-    } else if(_handleType == EFDoubleCircleWithOpenCenter) {
-        [_handleColor set];
-        CGContextAddArc(ctx, handleCenter.x + (_lineWidth)/2, handleCenter.y + (_lineWidth)/2, _lineWidth/2 + 5, 0, M_PI *2, 0);
-        CGContextSetLineWidth(ctx, 4);
-        CGContextSetLineCap(ctx, kCGLineCapButt);
-        CGContextDrawPath(ctx, kCGPathStroke);
-        
-        CGContextAddArc(ctx, handleCenter.x + _lineWidth/2, handleCenter.y + _lineWidth/2, _lineWidth/2, 0, M_PI *2, 0);
-        CGContextSetLineWidth(ctx, 2);
-        CGContextSetLineCap(ctx, kCGLineCapButt);
-        CGContextDrawPath(ctx, kCGPathStroke);
-    } else if(_handleType == EFBigCircle) {
-        [_handleColor set];
-        CGContextFillEllipseInRect(ctx, CGRectMake(handleCenter.x-2.5, handleCenter.y-2.5, _lineWidth+5, _lineWidth+5));
-    }
+-(void) drawHandle:(CGContextRef)ctx {
     
-    CGContextRestoreGState(ctx);
+    [UIView animateWithDuration:0.1 animations:^{
+        CGContextSaveGState(ctx);
+        CGPoint handleCenter =  [self pointFromAngle: angle];
+        if(_handleType == EFSemiTransparentWhiteCircle) {
+            [[UIColor colorWithWhite:1.0 alpha:0.7] set];
+            CGContextFillEllipseInRect(ctx, CGRectMake(handleCenter.x, handleCenter.y, _lineWidth, _lineWidth));
+        } else if(_handleType == EFSemiTransparentBlackCircle) {
+            [[UIColor colorWithWhite:0.0 alpha:0.7] set];
+            CGContextFillEllipseInRect(ctx, CGRectMake(handleCenter.x, handleCenter.y, _lineWidth, _lineWidth));
+        } else if(_handleType == EFDoubleCircleWithClosedCenter) {
+            [_handleColor set];
+            CGContextAddArc(ctx, handleCenter.x + (_lineWidth)/2, handleCenter.y + (_lineWidth)/2, _lineWidth/2 + 12, 0, M_PI *2, 0);
+            CGContextSetLineWidth(ctx, 0.5);
+            CGContextSetLineCap(ctx, kCGLineCapButt);
+            CGContextDrawPath(ctx, kCGPathStroke);
+            
+            if (_handleCenterColor) {
+                [_handleCenterColor set];
+            }
+            CGContextAddArc(ctx, handleCenter.x + (_lineWidth)/2, handleCenter.y + (_lineWidth)/2, _lineWidth/2 + 11.5, 0, M_PI *2, 0);
+            CGContextSetLineCap(ctx, kCGLineCapButt);
+            CGContextDrawPath(ctx, kCGPathFill);
+            
+            NSDictionary *attributes = @{ NSFontAttributeName: _labelFont,
+                                          NSForegroundColorAttributeName: _labelColor
+                                          };
+            int value =  (_currentValue + (_valueSetManually ? 0 : _minimumValue));
+            _valueSetManually= false;
+            NSString *label = [NSString stringWithFormat:@"%d", value];
+            CGSize labelSize= [self sizeOfString:label withFont:_labelFont];
+            [label drawInRect:CGRectMake(handleCenter.x - (labelSize.width / 3.5), handleCenter.y - (labelSize.height / 2.5), labelSize.width, labelSize.height) withAttributes:attributes];
+        } else if(_handleType == EFDoubleCircleWithOpenCenter) {
+            [_handleColor set];
+            CGContextAddArc(ctx, handleCenter.x + (_lineWidth)/2, handleCenter.y + (_lineWidth)/2, _lineWidth/2 + 10, 0, M_PI *2, 0);
+            CGContextSetLineWidth(ctx, 0.5);
+            CGContextSetLineCap(ctx, kCGLineCapButt);
+            CGContextDrawPath(ctx, kCGPathStroke);
+            
+            
+            CGContextAddArc(ctx, handleCenter.x + _lineWidth/2, handleCenter.y + _lineWidth/2, _lineWidth/2, 0, M_PI *2, 0);
+            CGContextSetLineWidth(ctx, 2);
+            CGContextSetLineCap(ctx, kCGLineCapButt);
+            CGContextDrawPath(ctx, kCGPathStroke);
+        } else if(_handleType == EFBigCircle) {
+            [_handleColor set];
+            CGContextFillEllipseInRect(ctx, CGRectMake(handleCenter.x-2.5, handleCenter.y-2.5, _lineWidth+5, _lineWidth+5));
+        } else if (_handleType == EFTransparent) {
+            [[UIColor colorWithWhite:1.0 alpha:0.0] set];
+            CGContextFillEllipseInRect(ctx, CGRectMake(handleCenter.x, handleCenter.y, _lineWidth, _lineWidth));
+        }
+        
+        CGContextRestoreGState(ctx);
+    }];
 }
 
 - (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
@@ -240,9 +291,9 @@
         for (int i=0; i<[labelsEvenSpacing count]; i++) {
             CGFloat percentageAlongCircle = i/(float)[labelsEvenSpacing count];
             CGFloat degreesForLabel = percentageAlongCircle * 360;
-            if(abs(fixedAngle - degreesForLabel) < minDist) {
+            if(fabs(fixedAngle - degreesForLabel) < minDist) {
                 newAngle=degreesForLabel ? 360 - degreesForLabel : 0;
-                minDist = abs(fixedAngle - degreesForLabel);
+                minDist = fabs(fixedAngle - degreesForLabel);
             }
         }
         angle = newAngle;
@@ -303,7 +354,10 @@
         return _lineWidth + 2.5 + 2;
     } else if(_handleType == EFBigCircle) {
         return _lineWidth + 2.5;
+    } else if(_handleType == EFTransparent) {
+        return _lineWidth;
     }
+    
     return 0;
 }
 
@@ -330,9 +384,14 @@ static inline float AngleFromNorth(CGPoint p1, CGPoint p2, BOOL flipped) {
 - (float)angleFromValue {
     angle = 360 - (360.0f*_currentValue/_maximumValue);
     
-    if(angle==360) angle=0;
+    if(angle == 0) angle=1;
     
     return angle;
+}
+
+- (CGSize ) sizeOfString:(NSString *)string withFont:(UIFont*)font {
+    NSDictionary *attributes = [NSDictionary dictionaryWithObjectsAndKeys:font, NSFontAttributeName, nil];
+    return [[[NSAttributedString alloc] initWithString:string attributes:attributes] size];
 }
 
 - (CGFloat) widthOfString:(NSString *)string withFont:(UIFont*)font {

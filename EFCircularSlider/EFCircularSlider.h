@@ -15,12 +15,15 @@ typedef NS_ENUM(NSInteger, EFHandleType) {
     EFSemiTransparentBlackCircle,
     EFDoubleCircleWithOpenCenter,
     EFDoubleCircleWithClosedCenter,
-    EFBigCircle
+    EFBigCircle,
+    EFTransparent
 };
 
 @property (nonatomic) float minimumValue;
 @property (nonatomic) float maximumValue;
 @property (nonatomic) float currentValue;
+@property (nonatomic) float endValue;
+@property (nonatomic) float _animationProgressStep;
 
 @property (nonatomic) int lineWidth;
 @property (nonatomic) int lineRadiusDisplacement;
@@ -28,15 +31,20 @@ typedef NS_ENUM(NSInteger, EFHandleType) {
 @property (nonatomic, strong) UIColor* unfilledColor;
 
 @property (nonatomic, strong) UIColor* handleColor;
+@property (nonatomic, strong) UIColor* handleCenterColor;
 @property (nonatomic) EFHandleType handleType;
 
 @property (nonatomic, strong) UIFont* labelFont;
 @property (nonatomic, strong) UIColor* labelColor;
 @property (nonatomic, assign) NSInteger labelDisplacement;
+@property (nonatomic, strong) NSTimer *_animationTimer;
 @property (nonatomic) BOOL snapToLabels;
+@property (nonatomic) BOOL valueSetManually;
 
 
 
 -(void)setInnerMarkingLabels:(NSArray*)labels;
+
+- (void)setCurrentValue:(float )currentValue  animated:(BOOL)animated duration:(CGFloat)duration;
 
 @end
